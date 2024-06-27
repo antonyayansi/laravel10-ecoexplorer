@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('registros', function (Blueprint $table) {
             $table->id();
             $table->string('valor');
-            $table->string('fecha')->default(now());
+            $table->datetime('fecha')->default(now());
             $table->unsignedBigInteger('sensors_id');
             $table->foreign('sensors_id')->references('id')->on('sensors');
             $table->timestamps();

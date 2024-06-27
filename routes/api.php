@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DispositivoController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\RegistroController;
 
 /*
 |--------------------------------------------------------------------------
@@ -23,9 +24,12 @@ Route::group([
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/refresh', [AuthController::class, 'refresh']);
-    Route::get('/user-profile', [AuthController::class, 'userProfile']);    
+    Route::get('/user-profile', [AuthController::class, 'userProfile']);
 });
 
 Route::resource('dispositivos', DispositivoController::class);
 // funciones para la pantalla de inicio
 Route::get('/rangos', [HomeController::class, 'rangos'])->name('rangos');
+Route::resource('/registros', RegistroController::class);
+
+Route::get('/get-data-format', [RegistroController::class, 'getDataFormat'])->name('getDataFormat');

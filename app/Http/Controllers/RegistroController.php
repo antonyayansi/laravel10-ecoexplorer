@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Registro;
 use App\Models\Dispositivo;
+use App\Models\Sensor;
 use Illuminate\Http\Request;
+use DB;
 
 class RegistroController extends Controller
 {
@@ -14,6 +16,7 @@ class RegistroController extends Controller
     public function index(Request $request)
     {
         $dispositivo = Dispositivo::where('mac_address', $request->mac)->first();
+        $sensor = Sensor::where('tipo', $request->descripcion)->first();
 
         if(!$dispositivo){
             return response()->json([
@@ -23,10 +26,8 @@ class RegistroController extends Controller
 
         //crear registro
         $registro = new Registro();
-        $registro->dispositivos_id = $dispositivo->id;
-        $registro->descripcion = $request->descripcion;
+        $registro->sensors_id = $sensor->id;
         $registro->valor = $request->valor;
-        $registro->unidad = $request->unidad;
         $registro->fecha = now();
         $registro->save();
 
@@ -51,6 +52,7 @@ class RegistroController extends Controller
     {
         //encotrar id con la direccion MAC del dispositivo
         $dispositivo = Dispositivo::where('mac_address', $request->mac)->first();
+        $sensor = Sensor::where('tipo', $request->descripcion)->first();
 
         if(!$dispositivo){
             return response()->json([
@@ -58,12 +60,16 @@ class RegistroController extends Controller
             ], 404);
         }
 
+        if(!$sensor){
+            return response()->json([
+                'message' => 'Sensor no indentificado'
+            ], 404); 
+        }
+
         //crear registro
         $registro = new Registro();
-        $registro->dispositivos_id = $dispositivo->id;
-        $registro->descripcion = $request->descripcion;
+        $registro->sensors_id = $sensor->id;
         $registro->valor = $request->valor;
-        $registro->unidad = $request->unidad;
         $registro->fecha = now();
         $registro->save();
 
@@ -73,35 +79,92 @@ class RegistroController extends Controller
         ], 200);
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(Registro $registro)
-    {
-        //
-    }
+    public function getDataFormat(Request $request){
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Registro $registro)
-    {
-        //
-    }
+        if($request->rango == 'Hoy') {
+        $registros = DB::table('registros as r')
+            ->join('sensors as s', 's.id', '=', 'r.sensors_id')
+            ->select('r.fecha', 's.tipo', 'r.valor', 's.unidad')
+            ->where('r.fecha', '>=', now()->startOfWeek())
+            ->where('r.fecha', '<=', now()->endOfWeek())
+            ->where('s.tipo', $request->tipo)
+            ->get();
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, Registro $registro)
-    {
-        //
-    }
+        // Hacer promedio por hora
+        $data = [];
+        $totalSuma = 0;
+        $totalContador = 0;
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(Registro $registro)
-    {
-        //
+        for ($i = 0; $i < 24; $i++) {
+            $suma = 0;
+            $contador = 0;
+            foreach ($registros as $registro) {
+                // Asegurarse de que $registro->fecha es una instancia de Carbon
+                $fecha = new \Carbon\Carbon($registro->fecha);
+                if ($fecha->hour == $i) {
+                    $suma += $registro->valor;
+                    $contador++;
+                }
+            }
+            if ($contador != 0) {
+                $promedio = $suma / $contador;
+                $totalSuma += $suma;
+                $totalContador += $contador;
+                $data[$i] = [
+                    'hora' => $i,
+                    'promedio' => $promedio
+                ];
+            } else {
+                $data[$i] = [
+                    'hora' => $i,
+                    'promedio' => null // Inicialmente no hay promedio
+                ];
+            }
+        }
+
+            // Calcular el promedio general
+            $promedioGeneral = ($totalContador != 0) ? $totalSuma / $totalContador : 0;
+
+            // Rellenar las horas sin registros con el promedio general
+            foreach ($data as &$hora) {
+                if ($hora['promedio'] === null) {
+                    $hora['promedio'] = $promedioGeneral;
+                }
+            }
+
+            return response()->json($data, 200);
+
+        }else if($request->rango == 'Semana'){
+            $registros = DB::table('registros as r')
+                ->join('sensors as s', 's.id', '=', 'r.sensors_id')
+                ->select('r.fecha', 's.tipo', 'r.valor', 's.unidad')
+                ->where('r.fecha', '>=', now()->startOfWeek())
+                ->where('r.fecha', '<=', now()->endOfWeek())
+                ->where('s.tipo', $request->tipo)
+                ->get();
+
+            //hacer promedio por dia
+            $data = [];
+            for ($i=0; $i < 7; $i++) {
+                $suma = 0;
+                $contador = 0;
+                foreach ($registros as $registro) {
+                    // Asegurarse de que $registro->fecha es una instancia de Carbon
+                    $fecha = new \Carbon\Carbon($registro->fecha);
+                    if ($fecha->dayOfWeek == $i) {
+                        $suma += $registro->valor;
+                        $contador++;
+                    }
+                }
+                if($contador != 0){
+                    $promedio = $suma / $contador;
+                    $data[] = [
+                        'dia' => $i,
+                        'promedio' => $promedio
+                    ];
+                }
+            }
+            return response()->json($data, 200);
+        }
     }
 }
